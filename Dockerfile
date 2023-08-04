@@ -1,11 +1,12 @@
 FROM golang:1.18.4-alpine3.16
+ARG TARGETARCH
 
 ENV GOPATH /go
 
 RUN apk update && apk upgrade && \
     apk add --no-cache git build-base wget
 
-RUN wget -O /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64 \
+RUN wget -O /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_${TARGETARCH} \
  && chmod +x /usr/local/bin/dumb-init
 
 RUN mkdir -p /go/src/github.com/pingcap/go-ycsb
