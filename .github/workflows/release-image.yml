@@ -31,8 +31,11 @@ jobs:
           echo tag_name=$TAG_NAME >> $GITHUB_OUTPUT
 
   release-image:
+    permissions:
+      id-token: write
+      contents: read
     needs: image-tag
-    uses: apecloud/apecloud-cd/.github/workflows/release-image.yml@v0.1.11
+    uses: apecloud-inc/apecloud-cd/.github/workflows/release-image.yml@v0.1.0
     with:
       MAKE_OPS: "docker-buildx"
       IMG: "apecloud/go-ycsb"
