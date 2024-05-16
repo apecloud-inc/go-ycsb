@@ -41,6 +41,4 @@ jobs:
       IMG: "apecloud/go-ycsb"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
       GO_VERSION: "1.20"
-      SYNC_ENABLE: false
-      APECD_REF: "v0.1.11"
     secrets: inherit
