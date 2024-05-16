@@ -242,6 +242,20 @@ func (r redisCreator) Create(p *properties.Properties) (ycsb.DB, error) {
 				return nil, err
 			}
 		}
+	case "sentinel":
+		sentialClient := goredis.NewFailoverClient(getOptionsSentinel(p))
+		err := sentialClient.Ping(context.Background()).Err()
+		if err != nil {
+			return nil, err
+		}
+		rds.client = sentialClient
+
+		if p.GetBool(prop.DropData, prop.DropDataDefault) {
+			err := rds.client.FlushDB(context.Background()).Err()
+			if err != nil {
+				return nil, err
+			}
+		}
 	case "single":
 		fallthrough
 	default:
@@ -301,6 +315,11 @@ const (
 	redisTLSCert               = "redis.tls_cert"
 	redisTLSKey                = "redis.tls_key"
 	redisTLSInsecureSkipVerify = "redis.tls_insecure_skip_verify"
+
+	// params for redis sentinel
+	redisSentinelMasterName = "redis.sentinel_master_name"
+	redisSentinelUsername   = "redis.sentinel_username"
+	redisSentinelPassword   = "redis.sentinel_password"
 )
 
 func parseTLS(p *properties.Properties) *tls.Config {
@@ -354,6 +373,54 @@ func getOptionsSingle(p *properties.Properties) *goredis.Options {
 	// -1 disables idle timeout check.
 	opts.ConnMaxIdleTime = p.GetDuration(redisIdleTimeout, -1)
 	opts.TLSConfig = parseTLS(p)
+
+	return opts
+}
+
+func getOptionsSentinel(p *properties.Properties) *goredis.FailoverOptions {
+	opts := &goredis.FailoverOptions{}
+
+	// connect parameters
+	address, _ := p.Get(redisAddr)
+	opts.MasterName = p.GetString(redisSentinelMasterName, "")
+	opts.SentinelAddrs = strings.Split(address, ";")
+	opts.SentinelUsername = p.GetString(redisSentinelUsername, "")
+	opts.SentinelPassword, _ = p.Get(redisSentinelPassword)
+	opts.Username = p.GetString(redisUsername, "")
+	opts.Password, _ = p.Get(redisPassword)
+
+	// configuration parameters
+	opts.MaxRetries = p.GetInt(redisMaxRetries, 0)
+	opts.MinRetryBackoff = p.GetDuration(redisMinRetryBackoff, time.Millisecond*8)
+	opts.MaxRetryBackoff = p.GetDuration(redisMaxRetryBackoff, time.Millisecond*512)
+	opts.DialTimeout = p.GetDuration(redisDialTimeout, time.Second*5)
+	opts.ReadTimeout = p.GetDuration(redisReadTimeout, time.Second*3)
+	opts.WriteTimeout = p.GetDuration(redisWriteTimeout, opts.ReadTimeout)
+	opts.PoolSize = p.GetInt(redisPoolSize, redisPoolSizeDefault)
+	threadCount := p.MustGetInt("threadcount")
+	if opts.PoolSize == 0 {
+		opts.PoolSize = threadCount
+		fmt.Println(fmt.Sprintf("Setting %s=%d (from <threadcount>) given you haven't specified a value.", redisPoolSize, opts.PoolSize))
+	}
+	opts.MinIdleConns = p.GetInt(redisMinIdleConns, opts.PoolSize)
+	opts.MaxIdleConns = p.GetInt(redisMaxIdleConns, opts.PoolSize)
+	// Since go-redis 9.0.0 the MaxConnAge option was Renamed to ConnMaxLifetime
+	// Expired connections may be closed lazily before reuse.
+	// If <= 0, connections are not closed due to a connection's age.
+	opts.ConnMaxLifetime = p.GetDuration(redisMaxConnAge, -1)
+	// Amount of time client waits for connection if all connections
+	// are busy before returning an error.
+	// Default is ReadTimeout + 1 second.
+	opts.PoolTimeout = p.GetDuration(redisPoolTimeout, time.Second+opts.ReadTimeout)
+	// Since go-redis 9.0.0 the MaxConnAge option was Renamed to ConnMaxLifetime
+	// Expired connections may be closed lazily before reuse.
+	// If d <= 0, connections are not closed due to a connection's idle time.
+	// -1 disables idle timeout check.
+	opts.ConnMaxIdleTime = p.GetDuration(redisIdleTimeout, -1)
+	opts.TLSConfig = parseTLS(p)
+
+	opts.RouteByLatency = p.GetBool(redisRouteByLatency, false)
+	opts.RouteRandomly = p.GetBool(redisRouteRandomly, false)
 
 	return opts
 }
