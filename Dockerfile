@@ -1,4 +1,5 @@
 FROM golang:1.18.4-alpine3.16
+ARG TARGETOS
 ARG TARGETARCH
 
 ENV GOPATH /go
@@ -19,7 +20,7 @@ RUN GO111MODULE=on go mod download
 
 COPY . .
 
-RUN GO111MODULE=on go build -o /go-ycsb ./cmd/*
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GO111MODULE=on go build -o /go-ycsb ./cmd/*
 
 FROM alpine:3.8 
 
