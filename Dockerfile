@@ -1,5 +1,7 @@
-FROM golang:1.18.4-alpine3.16
+FROM golang:1.18.4-alpine3.16 as builder
+
 ARG TARGETARCH
+ARG TARGETOS
 
 ENV GOPATH /go
 
@@ -19,12 +21,12 @@ RUN GO111MODULE=on go mod download
 
 COPY . .
 
-RUN GO111MODULE=on go build -o /go-ycsb ./cmd/*
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GO111MODULE=on go build -o /go-ycsb ./cmd/*
 
-FROM alpine:3.8 
+FROM alpine:3.8 as runtime
 
-COPY --from=0 /go-ycsb /go-ycsb
-COPY --from=0 /usr/local/bin/dumb-init /usr/local/bin/dumb-init
+COPY --from=builder /go-ycsb /go-ycsb
+COPY --from=builder /usr/local/bin/dumb-init /usr/local/bin/dumb-init
 
 ADD workloads /workloads
 
